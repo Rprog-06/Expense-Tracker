@@ -1,0 +1,82 @@
+{% extends "tracker/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="text-center">
+    <h2>Welcome, {{ request.user.username }}</h2>
+    <h3>Total Expense: ${{ total_expense }}</h3>
+</div>
+
+<div class="d-flex justify-content-center mt-3">
+    <a href="{% url 'add_expense' %}" class="btn btn-custom">Add Expense</a>
+</div>
+<div class="card mt-4 p-3">
+    <h4>Expense Trend Over Time</h4>
+    <canvas id="expenseChart"></canvas>
+</div>
+
+
+
+
+<div class="card mt-4 p-3">
+    <h4>Your Expenses</h4>
+    <ul class="list-group">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+        {% for expense in expenses %}
+        <tr>
+            <td>{{ expense.name }}</td>
+            <td>${{ expense.amount }}</td>
+            <td>{{ expense.date }}</td>  <!-- Displaying the date -->
+            <td>
+                <a href="{% url 'update_expense' expense.id %}" class="btn btn-warning btn-sm">Update</a>
+                <a href="{% url 'delete_expense' expense.id %}" class="btn btn-danger btn-sm">Delete</a>
+                
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+    </ul>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+     document.addEventListener("DOMContentLoaded", function () {
+        const ctx = document.getElementById("expenseChart").getContext("2d");
+        
+        const expenseChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: JSON.parse('{{ dates | safe }}'),  // Sorted Dates
+                datasets: [{
+                    label: "Expenses",
+                    data: JSON.parse('{{ amounts | safe }}'),  // Sorted Amounts
+                    borderColor: "blue",
+                    backgroundColor: "rgba(0, 123, 255, 0.2)",
+                    borderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
+
+    
+</script>
+
+{% endblock %}
