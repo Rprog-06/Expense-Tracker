@@ -1,5 +1,17 @@
 {% extends "tracker/base.html" %}
 {% load static %}
+<h4>Set / Update Income</h4>
+<form method="post" class="mb-4">
+    {% csrf_token %}
+    {{ income_form.as_p }}
+    <button type="submit" name="update_income" class="btn btn-primary">Save Income</button>
+</form>
+
+{% if warning %}
+<div class="alert alert-warning">
+    ⚠️ Warning: You are running low on income!
+</div>
+{% endif %}
 
 {% block content %}
 <div class="text-center">
