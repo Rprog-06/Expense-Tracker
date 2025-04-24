@@ -13,3 +13,8 @@ class ExpenseForm(forms.ModelForm):
 
 class RegisterForm(UserCreationForm):
     pass
+class IncomeForm(forms.ModelForm):
+    class Meta:
+        model = Income
+        fields = ['amount']
+
