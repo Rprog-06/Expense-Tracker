@@ -8,6 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from decimal import Decimal 
 import json
+from .models import Income
+from .forms import IncomeForm
 
 def register(request):
     if request.method == 'POST':
@@ -45,7 +47,11 @@ def dashboard(request):
         "expenses": expenses,
         "total_expense": sum(amounts),
         "dates": json.dumps(dates),  # Convert to JSON format for JavaScript
-        "amounts": json.dumps(amounts),  # Convert to JSON format
+        "amounts": json.dumps(amounts), 
+        "remaining_income": remaining_income,
+        "warning": warning,
+        "income_form": income_form,
+        # Convert to JSON format
     }
     return render(request, "tracker/dashboard.html", context)
 
@@ -82,8 +88,31 @@ def update_expense(request, expense_id):
             form.save()
             return redirect("dashboard")  # Redirect to dashboard after updating
     else:
+
+
+        
         form = ExpenseForm(instance=expense)  # Pre-fill the form with existing data
 
     return render(request, "tracker/update_expense.html", {"form": form})
+def set_income(request):
+    try:
+        income = Income.objects.get(user=request.user)
+    except Income.DoesNotExist:
+        income = None
+
+    if request.method == 'POST':
+        form = IncomeForm(request.POST, instance=income)
+        if form.is_valid():
+            new_income = form.save(commit=False)
+            new_income.user = request.user
+            new_income.save()
+            return redirect('dashboard')
+    else:
+        form = IncomeForm(instance=income)
+
+    return render(request, 'tracker/set_income.html', {'form': form})
+
+# Create your views here.
+
 
 # Create your views here.
