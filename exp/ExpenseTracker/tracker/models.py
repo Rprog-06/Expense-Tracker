@@ -11,6 +11,12 @@ class Expense(models.Model):
 
     def __str__(self):
         return self.name
+class Income(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.user.username}'s Income: {self.amount}"
 
 
 # Create your models here.
