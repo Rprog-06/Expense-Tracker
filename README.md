@@ -18,7 +18,7 @@ Track your expenses and manage your budget effectively using this simple yet pow
 - Add income and expenses
 - View total balance, income, and expenses
 - View expense history
-- Data persists using localStorage
+- Data persists using sqlite
 
 ## 🚀 Getting Started
 
