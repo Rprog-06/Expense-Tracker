@@ -7,7 +7,17 @@ from .forms import ExpenseForm, RegisterForm
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from decimal import Decimal 
+from scipy.stats import zscore
+import numpy as np
+import pandas as pd
 import json
+import joblib
+import os
+
+# Load the model once
+model_path = os.path.join(os.path.dirname(__file__), 'expense_classifier.pkl')
+expense_model = joblib.load(model_path)
+
 
 def register(request):
     if request.method == 'POST':
@@ -52,6 +62,26 @@ def dashboard(request):
             return redirect('dashboard')
     else:
         income_form = IncomeForm(instance=income_obj)
+    anomaly_alert = None
+    df = pd.DataFrame(list(expenses.values('category', 'amount', 'date')))
+    df['amount'] = df['amount'].astype(float)
+
+    grouped = df.groupby('category')['amount'].apply(list)
+
+    for category, amounts in grouped.items():
+        if len(amounts) > 2:
+            q1 = np.percentile(amounts, 25)
+            q3 = np.percentile(amounts, 75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+
+            for amt in amounts:
+                if amt < lower_bound or amt > upper_bound:
+                    anomaly_alert = f"⚠️ Unusual spending detected in '{category}'!"
+                    break
+        if anomaly_alert:
+            break
 
     # Remaining income calculation
     income = income_obj.amount or 0
@@ -70,6 +100,7 @@ def dashboard(request):
         "remaining_income": remaining_income,
         "warning": warning,
         "income_form": income_form,
+         "anomaly_alert": anomaly_alert,
     }
     return render(request, "tracker/dashboard.html", context)
 
@@ -81,6 +112,11 @@ def add_expense(request):
         if form.is_valid():
             expense = form.save(commit=False)
             expense.user = request.user
+           
+            # Predict category using model
+            if not expense.category:  # Only auto-detect if not selected
+                predicted_category = expense_model.predict([expense.name])[0]
+                expense.category = predicted_category
             expense.save()
             return redirect('dashboard')
     else:
