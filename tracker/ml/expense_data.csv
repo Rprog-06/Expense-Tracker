@@ -1,21 +1,52 @@
 description,category
-Zomato dinner,Food
-Domino's pizza,Food
+Pizza,Food
+Ice cream,Food
+Groceries,Food
 Uber ride,Transport
-Ola to work,Transport
-Monthly Netflix,Entertainment
-Hotstar subscription,Entertainment
-Mobile recharge,Utilities
-Electricity bill,Utilities
-Medicine purchase,Health
-Doctor appointment,Health
-Gym membership,Fitness
-Protein powder,Fitness
-Book purchase,Education
-Udemy course,Education
-Flight ticket,Travel
-Hotel booking,Travel
+Bus ticket,Transport
+Fuel,Transport
+T-shirt,Clothing
+Jeans,Clothing
+Dress,Clothing
 Movie ticket,Entertainment
-Bus fare,Transport
-Lunch at McDonalds,Food
-Taxi to airport,Transport
+Netflix subscription,Entertainment
+Concert pass,Entertainment
+Electricity bill,Bills
+Water bill,Bills
+Internet recharge,Bills
+Doctor visit,Health
+Pharmacy bill,Health
+Medical checkup,Health
+Lunch,Food
+Dinner,Food
+Coffee,Food
+Train ticket,Transport
+Auto fare,Transport
+Shirt,Clothing
+Kurta,Clothing
+Video game,Entertainment
+Amazon Prime,Entertainment
+Gas bill,Bills
+Mobile recharge,Bills
+Dentist visit,Health
+Vitamins,Health
+Sandwich,Food
+Pasta,Food
+Taxi ride,Transport
+Bus pass,Transport
+Blazer,Clothing
+Saree,Clothing
+Board game,Entertainment
+YouTube Premium,Entertainment
+Rent,Bills
+LPG refill,Bills
+Eye checkup,Health
+First aid kit,Health
+Snacks,Food
+Chocolate,Food
+Metro card,Transport
+Jacket,Clothing
+Skirt,Clothing
+OTT subscription,Entertainment
+Light bill,Bills
+Clinic visit,Health
