@@ -50,7 +50,7 @@ def dashboard(request):
     total_expense = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
 
     # Get or create income object
-    income_obj, created = Income.objects.get_or_create(user=request.user,defaults={'amount': 0})
+    income_obj, created = Income.objects.get_or_create(user=request.user, defaults={'amount': 0})
 
     # Handle income update form
     if request.method == 'POST' and 'update_income' in request.POST:
@@ -62,26 +62,32 @@ def dashboard(request):
             return redirect('dashboard')
     else:
         income_form = IncomeForm(instance=income_obj)
+
+    # Anomaly Detection (Weekly IQR based)
     anomaly_alert = None
-    df = pd.DataFrame(list(expenses.values('category', 'amount', 'date')))
-    df['amount'] = df['amount'].astype(float)
+    df_data = list(expenses.values('category', 'amount', 'date'))
+    if df_data:
+        df = pd.DataFrame(df_data)
+        df['amount'] = df['amount'].astype(float)
+        df['date'] = pd.to_datetime(df['date'])
+        df['week'] = df['date'].dt.to_period('W').apply(lambda r: r.start_time)
 
-    grouped = df.groupby('category')['amount'].apply(list)
+        grouped = df.groupby(['category', 'week'])['amount'].apply(list)
 
-    for category, amounts in grouped.items():
-        if len(amounts) > 2:
-            q1 = np.percentile(amounts, 25)
-            q3 = np.percentile(amounts, 75)
-            iqr = q3 - q1
-            lower_bound = q1 - 1.5 * iqr
-            upper_bound = q3 + 1.5 * iqr
+        for (category, week), amounts in grouped.items():
+            if len(amounts) > 2:
+                q1 = np.percentile(amounts, 25)
+                q3 = np.percentile(amounts, 75)
+                iqr = q3 - q1
+                lower_bound = q1 - 1.5 * iqr
+                upper_bound = q3 + 1.5 * iqr
 
-            for amt in amounts:
-                if amt < lower_bound or amt > upper_bound:
-                    anomaly_alert = f"⚠️ Unusual spending detected in '{category}'!"
-                    break
-        if anomaly_alert:
-            break
+                for amt in amounts:
+                    if amt < lower_bound or amt > upper_bound:
+                        anomaly_alert = f"⚠️ Unusual spending detected in '{category}' during week starting {week.date()}!"
+                        break
+            if anomaly_alert:
+                break
 
     # Remaining income calculation
     income = income_obj.amount or 0
@@ -100,7 +106,7 @@ def dashboard(request):
         "remaining_income": remaining_income,
         "warning": warning,
         "income_form": income_form,
-         "anomaly_alert": anomaly_alert,
+        "anomaly_alert": anomaly_alert,
     }
     return render(request, "tracker/dashboard.html", context)
 
@@ -114,9 +120,9 @@ def add_expense(request):
             expense.user = request.user
            
             # Predict category using model
-            if not expense.category:  # Only auto-detect if not selected
-                predicted_category = expense_model.predict([expense.name])[0]
-                expense.category = predicted_category
+            # if not expense.category:  # Only auto-detect if not selected
+            #     predicted_category = expense_model.predict([expense.name])[0]
+            #     expense.category = predicted_category
             expense.save()
             return redirect('dashboard')
     else:
