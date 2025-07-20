@@ -14,9 +14,74 @@ import json
 import joblib
 import os
 
-# Load the model once
-model_path = os.path.join(os.path.dirname(__file__), 'expense_classifier.pkl')
-expense_model = joblib.load(model_path)
+from django.conf import settings
+
+
+
+
+# Add this to your views.py
+KEYWORD_MAPPING = {
+    # Bills/Utilities
+    'electricity': 'Bills',
+    'bill': 'Bills',
+    'internet': 'Bills',
+    'water': 'Bills',
+    
+    # Travel
+    'bus': 'Travel',
+    'uber': 'Travel',
+    'lyft': 'Travel',
+    'taxi': 'Travel',
+    'fuel': 'Travel',
+    'gas': 'Travel',
+    'ticket': 'Travel',
+    
+    # Shopping
+    'shirt': 'Shopping',
+    't-shirt': 'Shopping',
+    'jeans': 'Shopping',
+    'store': 'Shopping',
+    'mall': 'Shopping',
+    
+    # Entertainment
+    'movie': 'Entertainment',
+    'netflix': 'Entertainment',
+    'concert': 'Entertainment',
+    
+    # Food
+    'restaurant': 'Food',
+    'grocer': 'Food',
+    'dinner': 'Food',
+    'lunch': 'Food',
+    'coffee': 'Food',
+    'jalebi': 'Food',
+    'burger': 'Food'
+}
+
+def predict_category(expense_name):
+    expense_lower = expense_name.lower()
+    
+    # 1. First check keyword mapping
+    for keyword, category in KEYWORD_MAPPING.items():
+        if keyword in expense_lower:
+            return category
+    
+    # 2. Try local model (if exists)
+    try:
+        if 'expense_model' in globals():
+            predicted = expense_model.predict([expense_name])[0]
+            if predicted in STANDARD_CATEGORIES:
+                return predicted
+    except:
+        pass
+    
+    # 3. Final fallback
+    return 'Other'
+
+
+
+
+
 
 
 def register(request):
@@ -44,73 +109,124 @@ def user_login(request):
 
 from .forms import IncomeForm
 
+
+
+@login_required
 @login_required
 def dashboard(request):
-    expenses = Expense.objects.filter(user=request.user).order_by('-date', '-amount')
-    total_expense = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
+    try:
+        # Initialize context with safe defaults
+        context = {
+            "expenses": [],
+            "total_expense": 0,
+            "dates": json.dumps([]),
+            "amounts": json.dumps([]),
+            "remaining_income": 0,
+            "warning": False,
+            "income_form": None,
+            "anomaly_alerts": [],
+            "error": None
+        }
 
-    # Get or create income object
-    income_obj, created = Income.objects.get_or_create(user=request.user, defaults={'amount': 0})
+        # 1. Get and process expenses
+        expenses = Expense.objects.filter(user=request.user).order_by('-date', '-amount')
+        context["expenses"] = expenses
+        
+        # Calculate totals (handling Decimal properly)
+        total_expense = float(expenses.aggregate(Sum('amount'))['amount__sum']) or 0.0
+        context["total_expense"] = total_expense
+        
+        # 2. Handle income
+        income_obj, created = Income.objects.get_or_create(user=request.user, defaults={'amount': Decimal('0')})
+        income = float(income_obj.amount) if income_obj.amount else 0.0
+        context["remaining_income"] = income - total_expense
+        context["warning"] = context["remaining_income"] < 500
 
-    # Handle income update form
-    if request.method == 'POST' and 'update_income' in request.POST:
-        income_form = IncomeForm(request.POST, instance=income_obj)
-        if income_form.is_valid():
-            income = income_form.save(commit=False)
-            income.user = request.user
-            income.save()
-            return redirect('dashboard')
-    else:
-        income_form = IncomeForm(instance=income_obj)
+        # Income form handling
+        if request.method == 'POST' and 'update_income' in request.POST:
+            income_form = IncomeForm(request.POST, instance=income_obj)
+            if income_form.is_valid():
+                income_form.save()
+                return redirect('dashboard')
+        else:
+            income_form = IncomeForm(instance=income_obj)
+        context["income_form"] = income_form
 
-    # Anomaly Detection (Weekly IQR based)
-    anomaly_alert = None
-    df_data = list(expenses.values('category', 'amount', 'date'))
-    if df_data:
-        df = pd.DataFrame(df_data)
-        df['amount'] = df['amount'].astype(float)
-        df['date'] = pd.to_datetime(df['date'])
-        df['week'] = df['date'].dt.to_period('W').apply(lambda r: r.start_time)
+        # 3. Enhanced Anomaly Detection System
+        if expenses.exists():
+            try:
+                # Prepare dataframe with proper decimal conversion
+                df = pd.DataFrame(list(expenses.values('id', 'name', 'category', 'amount', 'date')))
+                df['amount'] = df['amount'].apply(lambda x: float(x))  # Convert all to float
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                df = df.dropna()
+                
+                if not df.empty:
+                    alerts = []
+                    median_amount = float(df['amount'].median())
+                    
+                    # Detection 1: Absolute large expenses (2.5x median or ₹2000+)
+                    large_threshold = max(2000, median_amount * 2.5)
+                    large_expenses = df[df['amount'] > large_threshold]
+                    for _, row in large_expenses.iterrows():
+                        alerts.append(
+                            f"⚠️ Large Expense: ₹{row['amount']:.2f} for {row['name']} "
+                            f"(exceeds ₹{large_threshold:.2f} threshold)"
+                        )
+                    
+                    # Detection 2: Weekly bill clusters (3+ bills/week)
+                    bills = df[df['category'].str.lower().str.contains('bill')]
+                    if not bills.empty:
+                        bills['week'] = bills['date'].dt.to_period('W').apply(lambda r: r.start_time)
+                        weekly_bills = bills.groupby('week').agg(
+                            count=('amount', 'count'),
+                            total=('amount', 'sum')
+                        ).reset_index()
+                        
+                        for _, row in weekly_bills[weekly_bills['count'] >= 2].iterrows():
+                            alerts.append(
+                                f"⚠️ Bill Cluster: {row['count']} bills totaling "
+                                f"₹{row['total']:.2f} (week of {row['week'].strftime('%m/%d')})"
+                            )
+                    
+                    # Detection 3: Category anomalies (IQR method)
+                    df['week'] = df['date'].dt.to_period('W')
+                    for (category, week), group in df.groupby(['category', 'week']):
+                        if len(group) > 1:
+                            amounts = group['amount'].values.astype(float)
+                            q1, q3 = np.percentile(amounts, [25, 75])
+                            iqr = q3 - q1
+                            lower, upper = q1 - 1.5*iqr, q3 + 1.5*iqr
+                            
+                            anomalies = group[(group['amount'] < lower) | (group['amount'] > upper)]
+                            for _, row in anomalies.iterrows():
+                                alerts.append(
+                                    f"⚠️ Unusual {category} spending: ₹{row['amount']:.2f} "
+                                    f"(typical range: ₹{lower:.2f}-₹{upper:.2f})"
+                                )
+                    
+                    context["anomaly_alerts"] = alerts[:5]  # Show max 5 alerts
 
-        grouped = df.groupby(['category', 'week'])['amount'].apply(list)
+            except Exception as e:
+                print(f"Anomaly detection error: {str(e)}")
+                context["error"] = "Could not analyze spending patterns"
 
-        for (category, week), amounts in grouped.items():
-            if len(amounts) > 2:
-                q1 = np.percentile(amounts, 25)
-                q3 = np.percentile(amounts, 75)
-                iqr = q3 - q1
-                lower_bound = q1 - 1.5 * iqr
-                upper_bound = q3 + 1.5 * iqr
+        # 4. Prepare chart data with proper decimal handling
+        try:
+            dates = [e.date.strftime("%Y-%m-%d") for e in expenses]
+            amounts = [float(e.amount) for e in expenses]  # Convert Decimal to float
+            context["dates"] = json.dumps(dates)
+            context["amounts"] = json.dumps(amounts)
+        except Exception as e:
+            print(f"Chart data error: {str(e)}")
+            context["error"] = "Could not prepare chart data"
 
-                for amt in amounts:
-                    if amt < lower_bound or amt > upper_bound:
-                        anomaly_alert = f"⚠️ Unusual spending detected in '{category}' during week starting {week.date()}!"
-                        break
-            if anomaly_alert:
-                break
+        return render(request, "tracker/dashboard.html", context)
 
-    # Remaining income calculation
-    income = income_obj.amount or 0
-    remaining_income = float(income) - float(total_expense)
-    warning = remaining_income < 500  # Customize warning threshold
-
-    # Chart data
-    dates = [expense.date.strftime("%Y-%m-%d") for expense in expenses]
-    amounts = [float(expense.amount) for expense in expenses]
-
-    context = {
-        "expenses": expenses,
-        "total_expense": total_expense,
-        "dates": json.dumps(dates),
-        "amounts": json.dumps(amounts),
-        "remaining_income": remaining_income,
-        "warning": warning,
-        "income_form": income_form,
-        "anomaly_alert": anomaly_alert,
-    }
-    return render(request, "tracker/dashboard.html", context)
-
-
+    except Exception as e:
+        print(f"Dashboard error: {str(e)}")
+        context["error"] = "System error loading dashboard"
+        return render(request, "tracker/dashboard.html", context)
 @login_required
 def add_expense(request):
     if request.method == 'POST':
@@ -118,17 +234,17 @@ def add_expense(request):
         if form.is_valid():
             expense = form.save(commit=False)
             expense.user = request.user
-           
-            # Predict category using model
-            # if not expense.category:  # Only auto-detect if not selected
-            #     predicted_category = expense_model.predict([expense.name])[0]
-            #     expense.category = predicted_category
+            
+            # If category is empty or "Other", try to predict it
+            if not expense.category or expense.category == 'Other':
+                expense.category = predict_category(expense.name)
+               
+            
             expense.save()
             return redirect('dashboard')
     else:
         form = ExpenseForm()
     return render(request, 'tracker/add_expense.html', {'form': form})
-
 @login_required
 def delete_expense(request, expense_id):
     expense = Expense.objects.get(id=expense_id)
@@ -175,3 +291,18 @@ def set_income(request):
     return render(request, 'tracker/set_income.html', {'form': form})
 
 # Create your views here.
+@login_required
+def recategorize(request, expense_id):
+    expense = get_object_or_404(Expense, id=expense_id, user=request.user)
+    
+    if request.method == 'POST':
+        new_category = request.POST.get('category')
+        if new_category in STANDARD_CATEGORIES:
+            expense.category = new_category
+            expense.save()
+            return redirect('dashboard')
+    
+    return render(request, 'tracker/recategorize.html', {
+        'expense': expense,
+        'categories': STANDARD_CATEGORIES
+    })

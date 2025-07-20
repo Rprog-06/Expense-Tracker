@@ -14,13 +14,24 @@
     ⚠️ Warning: You are running low on income!
 </div>
 {% endif %}
-{% if anomaly_alert %}
-  <div class="alert alert-warning text-center" role="alert">
-    {{ anomaly_alert }}
+{% if anomaly_alerts %}
+  <div class="alerts-container mb-4">
+    {% for alert in anomaly_alerts %}
+      <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ alert }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    {% endfor %}
   </div>
 {% endif %}
 
-
+<!-- {% if error %}
+  <div class="alert alert-danger text-center" role="alert">
+    <i class="fas fa-exclamation-triangle"></i> {{ error }}
+  </div>
+{% endif %} -->
 <h5>Remaining Income: ₹{{ remaining_income }}</h5>
 
 <div class="text-center">
