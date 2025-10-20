@@ -13,74 +13,51 @@ import pandas as pd
 import json
 import joblib
 import os
-
+from django.conf import settings
+import re
+import google.generativeai as genai
 from django.conf import settings
 
-
-
-
-# Add this to your views.py
-KEYWORD_MAPPING = {
-    # Bills/Utilities
-    'electricity': 'Bills',
-    'bill': 'Bills',
-    'internet': 'Bills',
-    'water': 'Bills',
-    
-    # Travel
-    'bus': 'Travel',
-    'uber': 'Travel',
-    'lyft': 'Travel',
-    'taxi': 'Travel',
-    'fuel': 'Travel',
-    'gas': 'Travel',
-    'ticket': 'Travel',
-    
-    # Shopping
-    'shirt': 'Shopping',
-    't-shirt': 'Shopping',
-    'jeans': 'Shopping',
-    'store': 'Shopping',
-    'mall': 'Shopping',
-    
-    # Entertainment
-    'movie': 'Entertainment',
-    'netflix': 'Entertainment',
-    'concert': 'Entertainment',
-    
-    # Food
-    'restaurant': 'Food',
-    'grocer': 'Food',
-    'dinner': 'Food',
-    'lunch': 'Food',
-    'coffee': 'Food',
-    'jalebi': 'Food',
-    'burger': 'Food'
-}
-
-def predict_category(expense_name):
-    expense_lower = expense_name.lower()
-    
-    # 1. First check keyword mapping
-    for keyword, category in KEYWORD_MAPPING.items():
-        if keyword in expense_lower:
-            return category
-    
-    # 2. Try local model (if exists)
+def gemini_predict_category(expense_name):
+    """
+    Predicts expense category using Gemini API.
+    Ensures flexible parsing and more accurate matching.
+    """
     try:
-        if 'expense_model' in globals():
-            predicted = expense_model.predict([expense_name])[0]
-            if predicted in STANDARD_CATEGORIES:
-                return predicted
-    except:
-        pass
-    
-    # 3. Final fallback
-    return 'Other'
+        genai.configure(api_key=settings.GEMINI_API_KEY)
 
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
+        prompt = f"""
+        Categorize the following expense into one of these categories ONLY:
+        [Food, Transport, Entertainment, Shopping, Bills, Health, Other]
 
+        Expense: "{expense_name}"
 
+        Output just ONE word — the category name exactly as listed above.
+        """
+
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+
+        # ✅ Normalize and clean output
+        text = re.sub(r'[^a-zA-Z]', '', text).capitalize()
+
+        valid_categories = [
+            "Food", "Transport", "Entertainment", "Shopping", "Bills", "Health", "Other"
+        ]
+
+        # ✅ Fuzzy correction: handle small differences (e.g., "Foods", "Transporting")
+        for category in valid_categories:
+            if category.lower() in text.lower():
+                return category
+
+        print(f"[⚠️ Gemini Output Unrecognized] Got: {text}")
+        return "Other"
+
+    except Exception as e:
+        print("Gemini Error:", e)
+        return "Other"
 
 
 
@@ -237,7 +214,7 @@ def add_expense(request):
             
             # If category is empty or "Other", try to predict it
             if not expense.category or expense.category == 'Other':
-                expense.category = predict_category(expense.name)
+                expense.category = gemini_predict_category(expense.name)
                
             
             expense.save()
