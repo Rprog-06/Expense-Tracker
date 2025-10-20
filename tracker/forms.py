@@ -1,7 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from .models import Expense
-from .models import Income
+from .models import Expense,Income
 
 class ExpenseForm(forms.ModelForm):
     date = forms.DateField(
