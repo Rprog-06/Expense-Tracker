@@ -24,7 +24,9 @@ def gemini_predict_category(expense_name):
     Ensures flexible parsing and more accurate matching.
     """
     try:
+        print("DEBUG: GEMINI_API_KEY =", os.getenv("GEMINI_API_KEY"))
         genai.configure(api_key=settings.GEMINI_API_KEY)
+        
 
         model = genai.GenerativeModel("gemini-2.5-flash")
 
