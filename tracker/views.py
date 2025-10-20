@@ -90,11 +90,13 @@ from .forms import IncomeForm
 
 
 
-@login_required
+
+
 @login_required
 def dashboard(request):
     try:
-        # Initialize context with safe defaults
+        print("⚙️ Loading dashboard for:", request.user)
+
         context = {
             "expenses": [],
             "total_expense": 0,
@@ -107,105 +109,60 @@ def dashboard(request):
             "error": None
         }
 
-        # 1. Get and process expenses
-        expenses = Expense.objects.filter(user=request.user).order_by('-date', '-amount')
+        # 1️⃣ Check database connectivity and Income table existence
+        try:
+            expenses = Expense.objects.filter(user=request.user).order_by('-date', '-amount')
+        except Exception as e:
+            print("🔥 Expense table error:", e)
+            context["error"] = f"Expense DB error: {e}"
+            return render(request, "tracker/dashboard.html", context)
+
         context["expenses"] = expenses
-        
-        # Calculate totals (handling Decimal properly)
-        total_expense = float(expenses.aggregate(Sum('amount'))['amount__sum']) or 0.0
+        total_expense = float(expenses.aggregate(Sum('amount'))['amount__sum'] or 0)
         context["total_expense"] = total_expense
-        
-        # 2. Handle income
-        income_obj, created = Income.objects.get_or_create(user=request.user, defaults={'amount': Decimal('0')})
-        income = float(income_obj.amount) if income_obj.amount else 0.0
-        context["remaining_income"] = income - total_expense
-        context["warning"] = context["remaining_income"] < 500
 
-        # Income form handling
-        if request.method == 'POST' and 'update_income' in request.POST:
-            income_form = IncomeForm(request.POST, instance=income_obj)
-            if income_form.is_valid():
-                income_form.save()
-                return redirect('dashboard')
-        else:
-            income_form = IncomeForm(instance=income_obj)
-        context["income_form"] = income_form
+        # 2️⃣ Check Income table
+        try:
+            income_obj, created = Income.objects.get_or_create(user=request.user, defaults={'amount': Decimal('0')})
+            income = float(income_obj.amount or 0)
+            context["remaining_income"] = income - total_expense
+            context["warning"] = context["remaining_income"] < 500
+        except Exception as e:
+            print("🔥 Income table error:", e)
+            context["error"] = f"Income DB error: {e}"
+            return render(request, "tracker/dashboard.html", context)
 
-        # 3. Enhanced Anomaly Detection System
-        if expenses.exists():
-            try:
-                # Prepare dataframe with proper decimal conversion
-                df = pd.DataFrame(list(expenses.values('id', 'name', 'category', 'amount', 'date')))
-                df['amount'] = df['amount'].apply(lambda x: float(x))  # Convert all to float
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-                df = df.dropna()
-                
-                if not df.empty:
-                    alerts = []
-                    median_amount = float(df['amount'].median())
-                    
-                    # Detection 1: Absolute large expenses (2.5x median or ₹2000+)
-                    large_threshold = max(2000, median_amount * 2.5)
-                    large_expenses = df[df['amount'] > large_threshold]
-                    for _, row in large_expenses.iterrows():
-                        alerts.append(
-                            f"⚠️ Large Expense: ₹{row['amount']:.2f} for {row['name']} "
-                            f"(exceeds ₹{large_threshold:.2f} threshold)"
-                        )
-                    
-                    # Detection 2: Weekly bill clusters (3+ bills/week)
-                    bills = df[df['category'].str.lower().str.contains('bill')]
-                    if not bills.empty:
-                        bills['week'] = bills['date'].dt.to_period('W').apply(lambda r: r.start_time)
-                        weekly_bills = bills.groupby('week').agg(
-                            count=('amount', 'count'),
-                            total=('amount', 'sum')
-                        ).reset_index()
-                        
-                        for _, row in weekly_bills[weekly_bills['count'] >= 2].iterrows():
-                            alerts.append(
-                                f"⚠️ Bill Cluster: {row['count']} bills totaling "
-                                f"₹{row['total']:.2f} (week of {row['week'].strftime('%m/%d')})"
-                            )
-                    
-                    # Detection 3: Category anomalies (IQR method)
-                    df['week'] = df['date'].dt.to_period('W')
-                    for (category, week), group in df.groupby(['category', 'week']):
-                        if len(group) > 1:
-                            amounts = group['amount'].values.astype(float)
-                            q1, q3 = np.percentile(amounts, [25, 75])
-                            iqr = q3 - q1
-                            lower, upper = q1 - 1.5*iqr, q3 + 1.5*iqr
-                            
-                            anomalies = group[(group['amount'] < lower) | (group['amount'] > upper)]
-                            for _, row in anomalies.iterrows():
-                                alerts.append(
-                                    f"⚠️ Unusual {category} spending: ₹{row['amount']:.2f} "
-                                    f"(typical range: ₹{lower:.2f}-₹{upper:.2f})"
-                                )
-                    
-                    context["anomaly_alerts"] = alerts[:5]  # Show max 5 alerts
+        # 3️⃣ Load income form safely
+        try:
+            if request.method == 'POST' and 'update_income' in request.POST:
+                income_form = IncomeForm(request.POST, instance=income_obj)
+                if income_form.is_valid():
+                    income_form.save()
+                    return redirect('dashboard')
+            else:
+                income_form = IncomeForm(instance=income_obj)
+            context["income_form"] = income_form
+        except Exception as e:
+            print("🔥 IncomeForm error:", e)
+            context["error"] = "Could not load income form."
 
-            except Exception as e:
-                print(f"Anomaly detection error: {str(e)}")
-                context["error"] = "Could not analyze spending patterns"
-
-        # 4. Prepare chart data with proper decimal handling
+        # 4️⃣ Prepare chart data safely
         try:
             dates = [e.date.strftime("%Y-%m-%d") for e in expenses]
-            amounts = [float(e.amount) for e in expenses]  # Convert Decimal to float
+            amounts = [float(e.amount) for e in expenses]
             context["dates"] = json.dumps(dates)
             context["amounts"] = json.dumps(amounts)
         except Exception as e:
-            print(f"Chart data error: {str(e)}")
-            context["error"] = "Could not prepare chart data"
+            print("🔥 Chart data error:", e)
+            context["error"] = "Chart data generation failed."
 
         return render(request, "tracker/dashboard.html", context)
 
     except Exception as e:
-        print(f"Dashboard error: {str(e)}")
-        context["error"] = "System error loading dashboard"
-        return render(request, "tracker/dashboard.html", context)
+        print("🔥 Dashboard crashed:", e)
+        return render(request, "tracker/dashboard.html", {"error": f"Critical: {e}"})
+
+        
 @login_required
 def add_expense(request):
     if request.method == 'POST':
