@@ -11,7 +11,8 @@ Track your expenses and manage your budget effectively using this simple yet pow
 - HTML5
 - CSS3
 - JavaScript (ES6)
-- Chart.js (optional for graphs)
+- Chart.js
+-Added AI based expense Categorization
 - LocalStorage API
 
 ## ✨ Features
