@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-c**^2hjka71cyskfa68^ju+yznyd!7e4ckkd9@8-t@^ay3+!b%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['expense-tracker-7-u2t5.onrender.com','127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['expense-tracker-10-1hmb.onrender.com','127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -124,6 +124,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT=os.path.join(BASE_DIR,'staticfiles')
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
