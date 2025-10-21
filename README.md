@@ -1,29 +1,38 @@
+# 💰 Expense Tracker with AI-Powered Anomaly Detection
+
+A full-featured *Django-based Expense Tracker* that helps you manage your finances efficiently.  
+It includes *AI category prediction (Gemini API), **anomaly detection, and a **Chart.js visualization dashboard* — all wrapped in a clean, responsive Bootstrap UI.
+
 ---
 
-### **. Expense Tracker - README**
+## 🚀 Features
 
-```markdown
-# Expense Tracker App
+✅ *Add, Edit & Delete Expenses*  
+Easily manage all your daily expenses in one place.
 
-Track your expenses and manage your budget effectively using this simple yet powerful Expense Tracker app.
+✅ *Income Tracking*  
+Set your total income and view your remaining balance in real-time.
 
-## 🔧 Technologies Used
-- HTML5
-- CSS3
-- JavaScript (ES6)
-- Chart.js
--Added AI based expense Categorization
-- LocalStorage API
+✅ *AI-Powered Category Prediction*  
+When you add an expense with an undefined category, *Gemini AI* automatically predicts the best matching category.
 
-## ✨ Features
-- Add income and expenses
-- View total balance, income, and expenses
-- View expense history
-- Data persists using sqlite
+✅ *Smart Anomaly Detection*
+Detects unusual spending patterns automatically:
+- ⚠ *Large Expense Detection* — Finds unusually high expenses.
+- ⚠ *Bill Cluster Detection* — Detects multiple bills in the same week.
+- ⚠ *Category IQR Anomalies* — Identifies outliers within each category.
 
-## 🚀 Getting Started
+✅ *Dynamic Chart.js Visualization*  
+Interactive line charts show your spending trends over time.
 
-```bash
-git clone https://github.com/Rprog-06/Expense-Tracker.git
-cd Expense-Tracker
-# Open index.html in browser
+✅ *Bootstrap 5 Interface*  
+Modern, mobile-friendly UI with modals for income updates and confirmation alerts.
+
+---
+
+## 🧠 AI Integration (Gemini API)
+
+Gemini AI is used to predict categories for uncategorized expenses.
+```python
+if not expense.category or expense.category == 'Other':
+    expense.category = gemini_predict_category(expense.name)
