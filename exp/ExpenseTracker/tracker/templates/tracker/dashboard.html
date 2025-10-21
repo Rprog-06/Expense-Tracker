@@ -1,94 +1,160 @@
-{% extends "tracker/base.html" %}
-{% load static %}
-<h4>Set / Update Income</h4>
-<form method="post" class="mb-4">
-    {% csrf_token %}
-    {{ income_form.as_p }}
-    <button type="submit" name="update_income" class="btn btn-primary">Save Income</button>
-</form>
-
-{% if warning %}
-<div class="alert alert-warning">
-    ⚠️ Warning: You are running low on income!
-</div>
-{% endif %}
+{% extends 'tracker/base.html' %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="text-center">
-    <h2>Welcome, {{ request.user.username }}</h2>
-    <h3>Total Expense: ${{ total_expense }}</h3>
-</div>
+<h2 class="text-center mb-4">Welcome, {{ user.username }} 👋</h2>
 
-<div class="d-flex justify-content-center mt-3">
-    <a href="{% url 'add_expense' %}" class="btn btn-custom">Add Expense</a>
-</div>
-<div class="card mt-4 p-3">
-    <h4>Expense Trend Over Time</h4>
-    <canvas id="expenseChart"></canvas>
-</div>
+<!-- Income Section -->
+{% if income_obj and income_obj.amount > 0 %}
+  <div class="alert alert-success text-center">
+    <p><strong>Total Income:</strong> ₹{{ income_obj.amount }}</p>
+    <p><strong>Remaining Income:</strong> ₹{{ remaining_income }}</p>
+  </div>
+{% else %}
+  <div class="alert alert-danger text-center">
+    No income set yet.
+    <a href="{% url 'set_income' %}">Click here</a> to set income.
+  </div>
+{% endif %}
+<hr class="my-4">
+<h5 class="text-center mb-3">Anomaly Alerts ⚠️</h5>
 
-
-
-
-<div class="card mt-4 p-3">
-    <h4>Your Expenses</h4>
+{% if anomaly_alerts %}
+  <div class="alert alert-warning shadow p-3" style="animation: fadeIn 0.8s ease-in-out;">
     <ul class="list-group">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-        {% for expense in expenses %}
-        <tr>
-            <td>{{ expense.name }}</td>
-            <td>${{ expense.amount }}</td>
-            <td>{{ expense.date }}</td>  <!-- Displaying the date -->
-            <td>
-                <a href="{% url 'update_expense' expense.id %}" class="btn btn-warning btn-sm">Update</a>
-                <a href="{% url 'delete_expense' expense.id %}" class="btn btn-danger btn-sm">Delete</a>
-                
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
+      {% for alert in anomaly_alerts %}
+        <li class="list-group-item list-group-item-warning">
+          {{ alert }}
+           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">X</button>
+        </li>
+      {% endfor %}
     </ul>
+  </div>
+{% else %}
+  <div class="alert alert-success text-center shadow">
+    ✅ No anomalies detected in your recent spending.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">X</button>
+  </div>
+{% endif %}
+
+
+<!-- Expenses Table -->
+<div class="card shadow">
+  <div class="card-header bg-primary text-white">Expenses</div>
+  <hr class="my-4">
+<h5 class="text-center mb-3">Expense Trend</h5>
+
+<canvas id="expenseChart" width="400" height="150"></canvas>
+
+  <div class="card-body">
+    {% if expenses %}
+      <table class="table table-bordered table-striped text-center">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Expense</th>
+            <th>Category</th>
+            <th>Amount (₹)</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for expense in expenses %}
+          <tr>
+            <td>{{ expense.date }}</td>
+            <td>{{ expense.name }}</td>
+            <td>{{ expense.category|default:"—" }}</td>
+            <td>{{ expense.amount }}</td>
+            <td>
+              <a href="{% url 'update_expense' expense.id %}" class="btn btn-sm btn-warning">Edit</a>
+              <!-- Delete Button triggers modal -->
+              <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ expense.id }}">
+                Delete
+              </button>
+            </td>
+          </tr>
+
+          <!-- Delete Confirmation Modal -->
+          <div class="modal fade" id="deleteModal{{ expense.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ expense.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                  <h5 class="modal-title" id="deleteModalLabel{{ expense.id }}">Confirm Delete</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  Are you sure you want to delete <strong>{{ expense.name }}</strong> of ₹{{ expense.amount }}?
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <a href="{% url 'delete_expense' expense.id %}" class="btn btn-danger">Delete</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-center text-muted">No expenses yet. Add one <a href="{% url 'add_expense' %}">here</a>.</p>
+    {% endif %}
+  </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
 <script>
-     document.addEventListener("DOMContentLoaded", function () {
-        const ctx = document.getElementById("expenseChart").getContext("2d");
-        
-        const expenseChart = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: JSON.parse('{{ dates | safe }}'),  // Sorted Dates
-                datasets: [{
-                    label: "Expenses",
-                    data: JSON.parse('{{ amounts | safe }}'),  // Sorted Amounts
-                    borderColor: "blue",
-                    backgroundColor: "rgba(0, 123, 255, 0.2)",
-                    borderWidth: 2,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
-    });
+  document.addEventListener("DOMContentLoaded", function() {
+      const ctx = document.getElementById('expenseChart');
 
-    
+      // Get data passed from views.py
+      const dates = JSON.parse('{{ dates|safe }}');
+      const amounts = JSON.parse('{{ amounts|safe }}');
+
+      if (ctx && dates.length > 0) {
+          new Chart(ctx, {
+              type: 'line',
+              data: {
+                  labels: dates,
+                  datasets: [{
+                      label: 'Expenses Over Time',
+                      data: amounts,
+                      borderWidth: 2,
+                      borderColor: 'rgba(54, 162, 235, 1)',
+                      backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                      fill: true,
+                      tension: 0.3,
+                      pointRadius: 4,
+                      pointBackgroundColor: 'rgba(54, 162, 235, 1)'
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  plugins: {
+                      legend: {
+                          display: true,
+                          position: 'top'
+                      },
+                      title: {
+                          display: true,
+                          text: 'Your Spending Pattern',
+                          font: { size: 16 }
+                      }
+                  },
+                  scales: {
+                      x: {
+                          title: { display: true, text: 'Date' }
+                      },
+                      y: {
+                          title: { display: true, text: 'Amount (₹)' },
+                          beginAtZero: true
+                      }
+                  }
+              }
+          });
+      } else {
+          console.warn("No data available for Chart.js");
+      }
+  });
 </script>
-
 {% endblock %}
+
