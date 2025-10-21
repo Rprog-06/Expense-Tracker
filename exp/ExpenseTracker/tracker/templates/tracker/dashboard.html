@@ -18,24 +18,7 @@
 {% endif %}
 <hr class="my-4">
 <h5 class="text-center mb-3">Anomaly Alerts ⚠️</h5>
-
-{% if anomaly_alerts %}
-  <div class="alert alert-warning shadow p-3" style="animation: fadeIn 0.8s ease-in-out;">
-    <ul class="list-group">
-      {% for alert in anomaly_alerts %}
-        <li class="list-group-item list-group-item-warning">
-          {{ alert }}
-           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">X</button>
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-{% else %}
-  <div class="alert alert-success text-center shadow">
-    ✅ No anomalies detected in your recent spending.
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">X</button>
-  </div>
-{% endif %}
+<div id="alerts" class="container mt-3"></div>
 
 
 <!-- Expenses Table -->
@@ -103,58 +86,85 @@
 
 
 <script>
-  document.addEventListener("DOMContentLoaded", function() {
-      const ctx = document.getElementById('expenseChart');
+document.addEventListener("DOMContentLoaded", function() {
+    /* ---------------------- EXPENSE CHART ---------------------- */
+    const ctx = document.getElementById('expenseChart');
 
-      // Get data passed from views.py
-      const dates = JSON.parse('{{ dates|safe }}');
-      const amounts = JSON.parse('{{ amounts|safe }}');
+    // Get data passed from views.py
+    const dates = JSON.parse('{{ dates|safe }}');
+    const amounts = JSON.parse('{{ amounts|safe }}');
 
-      if (ctx && dates.length > 0) {
-          new Chart(ctx, {
-              type: 'line',
-              data: {
-                  labels: dates,
-                  datasets: [{
-                      label: 'Expenses Over Time',
-                      data: amounts,
-                      borderWidth: 2,
-                      borderColor: 'rgba(54, 162, 235, 1)',
-                      backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                      fill: true,
-                      tension: 0.3,
-                      pointRadius: 4,
-                      pointBackgroundColor: 'rgba(54, 162, 235, 1)'
-                  }]
-              },
-              options: {
-                  responsive: true,
-                  plugins: {
-                      legend: {
-                          display: true,
-                          position: 'top'
-                      },
-                      title: {
-                          display: true,
-                          text: 'Your Spending Pattern',
-                          font: { size: 16 }
-                      }
-                  },
-                  scales: {
-                      x: {
-                          title: { display: true, text: 'Date' }
-                      },
-                      y: {
-                          title: { display: true, text: 'Amount (₹)' },
-                          beginAtZero: true
-                      }
-                  }
-              }
-          });
-      } else {
-          console.warn("No data available for Chart.js");
-      }
-  });
+    if (ctx && dates.length > 0) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Expenses Over Time',
+                    data: amounts,
+                    borderWidth: 2,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Your Spending Pattern',
+                        font: { size: 16 }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'Amount (₹)' }, beginAtZero: true }
+                }
+            }
+        });
+    } else {
+        console.warn("No data available for Chart.js");
+    }
+
+    /* ---------------------- ANOMALY ALERTS ---------------------- */
+    const alertsContainer = document.getElementById('alerts');
+    const anomalies = {{ anomaly_alerts|safe }};
+
+    if (anomalies && anomalies.length > 0) {
+        alertsContainer.innerHTML = '';
+        anomalies.forEach(msg => {
+            const alertDiv = document.createElement('div');
+            alertDiv.classList.add('alert', 'alert-warning', 'alert-dismissible', 'fade', 'show', 'mt-2');
+            alertDiv.setAttribute('role', 'alert');
+            alertDiv.innerHTML = `
+                <strong>⚠️ Anomaly Detected!</strong> ${msg}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            alertsContainer.appendChild(alertDiv);
+
+            // Optional: Auto dismiss after 8 seconds
+            setTimeout(() => {
+                alertDiv.classList.remove('show');
+                alertDiv.classList.add('fade');
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 20000);
+        });
+    } else {
+        alertsContainer.innerHTML = `
+            <div class="alert alert-success text-center shadow fade show mt-2">
+                ✅ No anomalies detected in your recent spending.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    }
+});
 </script>
 {% endblock %}
-

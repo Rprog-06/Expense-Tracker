@@ -172,7 +172,7 @@ def dashboard(request):
                     # Detection 3: Category anomalies (IQR method)
                     df['week'] = df['date'].dt.to_period('W')
                     for (category, week), group in df.groupby(['category', 'week']):
-                        if len(group) >= 1:
+                        if len(group) > 1:
                             amounts = group['amount'].values.astype(float)
                             q1, q3 = np.percentile(amounts, [25, 75])
                             iqr = q3 - q1
