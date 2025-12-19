@@ -2,6 +2,16 @@
 
 A full-featured *Django-based Expense Tracker* that helps you manage your finances efficiently.  
 It includes *AI category prediction (Gemini API), **anomaly detection, and a **Chart.js visualization dashboard* — all wrapped in a clean, responsive Bootstrap UI.
+## 🔗 Project Links
+- 🌐 Live Application: [Expense Tracker](https://expense-tracker-1-3d8q.onrender.com)
+
+Demo Credentials 
+
+Applicant
+
+Email: abc@123
+
+Password: Rizwan@25
 
 ---
 
